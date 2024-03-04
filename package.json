@@ -1,0 +1,12 @@
+{
+  "name": "endless_shooter",
+  "version": "1.0.0",
+  "description": "An endless shooter game built with Phaser.js",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": ["game", "shooter", "Phaser.js"],
+  "author": "Your Name",
+  "license": "MIT"
+}
