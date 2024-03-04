@@ -6,7 +6,11 @@
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": ["game", "shooter", "Phaser.js"],
+  "keywords": [
+    "game",
+    "shooter",
+    "Phaser.js"
+  ],
   "author": "Your Name",
   "license": "MIT"
 }
