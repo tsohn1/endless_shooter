@@ -1,28 +1,71 @@
-// Create a new Phaser game
+class PlayerProjectile extends Phaser.Physics.Arcade.Sprite {
+  constructor(scene, x, y) {
+      super(scene, x, y, 'projectile');
+      this.setScale(0.05);
+  }
 
+}
+class PlayerProjectileGroup extends Phaser.Physics.Arcade.Group {
+  constructor(scene, speed) {
+    super(scene.physics.world, scene);
+    this.speed = speed;
+    this.createMultiple({
+      classType: undefined,
+      frameQuantity: 500, // initial number of projectiles created
+      active: false,
+      visible: false,
+      key: 'projectile'
+    });
+  }
+  fireProjectile(sourceX, sourceY, destX, destY, lifespan) {
+    const projectile = this.getFirstDead(false);
+    if (projectile) {
+      projectile.setActive(true).setVisible(true);
+      projectile.setPosition(sourceX, sourceY)
+      const angle = Phaser.Math.Angle.Between(sourceX, sourceY, destX, destY);
+      projectile.setVelocityX(this.speed * Math.cos(angle));
+      projectile.setVelocityY(this.speed * Math.sin(angle));
 
+      // Set a timer to destroy the projectile after the specified lifespan
+      this.scene.time.delayedCall(lifespan, () => {
+        projectile.setActive(false).setVisible(false);
+      });
+
+    }
+  }
+  
+}
 class Game extends Phaser.Scene {
   constructor() {
     super();
 
     this.player;
-    this.playerRadius = 50;
-    this.playerSpeed = 500;
+    this.playerScale = 0.5;
+    this.playerSpeed = 2500;
+    this.playerProjectiles;
+    this.playerProjectileSpeed = 3000;
+    this.playerProjectileLifetime = 1000;
     this.objects;
 
   }
 
   preload() {
-
+		this.load.image('player', '/assets/circle1.png');
+    this.load.image('projectile', '/assets/circle2.png');
   }
 
   create() {
+    
     this.createPlayer();
+    this.playerProjectiles = new PlayerProjectileGroup(this, this.playerProjectileSpeed);
     this.createObjects();
+    // Set up mouse input for shooting projectiles
+    this.input.on('pointerdown', this.handlePointerDown, this);
   }
 
   createPlayer() {
-    this.player = this.add.circle(windowWidth/2, windowHeight/2, this.playerRadius, 0x00ff00);
+    this.player = this.add.image(windowWidth/2, windowHeight/2, 'player');
+    this.player.setScale(this.playerScale);
     this.player.setOrigin(0.5, 0.5);
     this.cameras.main.startFollow(this.player);
   }
@@ -41,7 +84,7 @@ class Game extends Phaser.Scene {
   
     // Draw a circle
     this.objects.strokeCircle(400, 300, 50);
-    
+
     // Draw a circle
     this.objects.strokeCircle(900, 300, 50);
   
@@ -79,6 +122,15 @@ class Game extends Phaser.Scene {
     const finalSpeed = this.playerSpeed * this.game.loop.delta / 1000;
     this.player.x += velocityX * finalSpeed;
     this.player.y += velocityY * finalSpeed;
+
+  }
+
+  handlePointerDown(pointer) {
+    // Shoot projectile on left click
+    if (pointer.leftButtonDown()) {
+      let pos = this.player.getCenter();
+      this.playerProjectiles.fireProjectile(pos.x, pos.y, pointer.worldX, pointer.worldY, this.playerProjectileLifetime);
+    }
   }
 }
 
@@ -94,5 +146,7 @@ const config = {
     default: 'arcade'
   }
 };
+
+
 
 const game = new Phaser.Game(config);
