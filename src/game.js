@@ -1,3 +1,21 @@
+
+class Enemy extends Phaser.Physics.Arcade.Sprite {
+  constructor(scene, x, y, speed=1000) {
+    super(scene, x, y, 'enemy');
+    this.setScale(0.5);
+    scene.add.existing(this);
+    scene.physics.world.enable(this);
+    this.speed = speed
+  }
+
+  update(player) {
+    // Chase the player logic
+    const angle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y);
+    this.setVelocityX(this.speed * Math.cos(angle));
+    this.setVelocityY(this.speed * Math.sin(angle));
+}
+
+}
 class PlayerProjectile extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
       super(scene, x, y, 'projectile');
@@ -45,6 +63,7 @@ class Game extends Phaser.Scene {
     this.playerProjectiles;
     this.playerProjectileSpeed = 3000;
     this.playerProjectileLifetime = 1000;
+    this.enemies = [];
     this.objects;
 
   }
@@ -52,6 +71,7 @@ class Game extends Phaser.Scene {
   preload() {
 		this.load.image('player', '/assets/circle1.png');
     this.load.image('projectile', '/assets/circle2.png');
+    this.load.image('enemy', 'assets/enemy_circle.png');
   }
 
   create() {
@@ -61,8 +81,12 @@ class Game extends Phaser.Scene {
     this.createObjects();
     // Set up mouse input for shooting projectiles
     this.input.on('pointerdown', this.handlePointerDown, this);
+    this.createEnemies();
   }
 
+  createEnemies() {
+    spawnEnemies(this, 5, 3000, 500, this.enemies);
+  }
   createPlayer() {
     this.player = this.add.image(windowWidth/2, windowHeight/2, 'player');
     this.player.setScale(this.playerScale);
@@ -122,7 +146,7 @@ class Game extends Phaser.Scene {
     const finalSpeed = this.playerSpeed * this.game.loop.delta / 1000;
     this.player.x += velocityX * finalSpeed;
     this.player.y += velocityY * finalSpeed;
-
+    this.enemies.forEach(enemy => enemy.update(this.player));
   }
 
   handlePointerDown(pointer) {
@@ -146,6 +170,30 @@ const config = {
     default: 'arcade'
   }
 };
+
+// Function to spawn multiple enemies at intervals
+function spawnEnemies(scene, numberOfEnemies, spawnInterval, speed, enemies) {
+  let enemyCount = 0;
+
+  // Timer event to spawn enemies at intervals
+  const spawnTimer = scene.time.addEvent({
+  delay: spawnInterval,
+  loop: true,
+  callback: () => {
+    const randomX = Phaser.Math.Between(0, scene.game.config.width);
+    const randomY = Phaser.Math.Between(0, scene.game.config.height);
+    const enemy = new Enemy(scene, randomX, randomY, speed);
+    enemies.push(enemy);
+
+    // Increase the count and stop spawning when the desired number is reached
+    enemyCount++;
+    if (enemyCount === numberOfEnemies) {
+      spawnTimer.destroy();
+      }
+    }
+  });
+}
+
 
 
 
