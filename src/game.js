@@ -1,70 +1,134 @@
 
 class Enemy extends Phaser.Physics.Arcade.Sprite {
-  constructor(scene, x, y, speed=1000) {
+  constructor(scene, x, y, speed=1000, health=100) {
     super(scene, x, y, 'enemy');
     this.setScale(0.5);
     scene.add.existing(this);
     scene.physics.world.enable(this);
-    this.speed = speed
+    this.speed = speed;
+    this.health = health;
   }
 
   update(player) {
     // Chase the player logic
     const angle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y);
-    this.setVelocityX(this.speed * Math.cos(angle));
-    this.setVelocityY(this.speed * Math.sin(angle));
+    const velocityX = (this.speed * Math.cos(angle));
+    const velocityY = (this.speed * Math.sin(angle));
+
+    this.setVelocityX(velocityX);
+    this.setVelocityY(velocityY);
+    
 }
-
-}
-class PlayerProjectile extends Phaser.Physics.Arcade.Sprite {
-  constructor(scene, x, y) {
-      super(scene, x, y, 'projectile');
-      this.setScale(0.05);
-  }
-
-}
-class PlayerProjectileGroup extends Phaser.Physics.Arcade.Group {
-  constructor(scene, speed) {
-    super(scene.physics.world, scene);
-    this.speed = speed;
-    this.createMultiple({
-      classType: undefined,
-      frameQuantity: 500, // initial number of projectiles created
-      active: false,
-      visible: false,
-      key: 'projectile'
-    });
-  }
-  fireProjectile(sourceX, sourceY, destX, destY, lifespan) {
-    const projectile = this.getFirstDead(false);
-    if (projectile) {
-      projectile.setActive(true).setVisible(true);
-      projectile.setPosition(sourceX, sourceY)
-      const angle = Phaser.Math.Angle.Between(sourceX, sourceY, destX, destY);
-      projectile.setVelocityX(this.speed * Math.cos(angle));
-      projectile.setVelocityY(this.speed * Math.sin(angle));
-
-      // Set a timer to destroy the projectile after the specified lifespan
-      this.scene.time.delayedCall(lifespan, () => {
-        projectile.setActive(false).setVisible(false);
-      });
-
+  takeDamage(damage) {
+    this.health -= damage
+    if (this.health <= 0) {
+      this.destroy();
     }
   }
-  
 }
+
+class Projectile extends Phaser.Physics.Arcade.Sprite {
+  constructor(scene, x, y, source, speed=3000, lifespan=1000) {
+    super(scene, x, y, 'projectile');
+    scene.add.existing(this);
+    scene.physics.world.enable(this);
+    this.speed = speed;
+    this.lifespan = lifespan;
+    this.source = source;
+  }
+
+  launch(targetX, targetY) {
+    const angle = Phaser.Math.Angle.Between(this.x, this.y, targetX, targetY);
+    const velocityX = (this.speed * Math.cos(angle));
+    const velocityY = (this.speed * Math.sin(angle));
+    this.setVelocityX(velocityX);
+    this.setVelocityY(velocityY);
+
+
+    // Destroy the projectile after a specified lifespan
+    this.scene.time.delayedCall(this.lifespan, () => {
+      this.destroy();
+    });
+  }
+}
+
+class Player extends Phaser.Physics.Arcade.Sprite {
+  constructor(scene, x, y, speed=1500, health = 100, attackSpeed = 100, projectileSpeed = 3000, projectileDuration = 1000) {
+    super(scene, x, y, 'player');
+    this.setScale(0.5);
+    scene.add.existing(this);
+    scene.physics.world.enable(this);
+
+    //player stats
+    this.speed = speed;
+    this.health = health;
+    this.attackSpeed = attackSpeed;
+    this.projectileSpeed = projectileSpeed;
+    this.projectileDuration = projectileDuration;
+    this.lastFired = 0; // To keep track of last firing time
+  }
+
+  update(cursors) {
+    let velocityX = 0;
+    let velocityY = 0;
+
+    if (cursors.up.isDown) {
+      velocityY -= 1;
+    } 
+    if (cursors.down.isDown) {
+      velocityY += 1;
+    }
+
+    if (cursors.left.isDown) {
+      velocityX -= 1;
+    } 
+    if (cursors.right.isDown) {
+      velocityX += 1;
+    }
+    // Normalize the velocity vector
+    const length = Math.sqrt(velocityX ** 2 + velocityY ** 2);
+    if (length !== 0) {
+        velocityX /= length;
+        velocityY /= length;
+    }
+
+    // Set the constant speed
+    const finalSpeed = this.speed;
+    this.setVelocityX(velocityX * finalSpeed);
+    this.setVelocityY(velocityY * finalSpeed);
+    
+
+    
+  }
+
+  shootProjectile(targetX, targetY) {
+    const timeNow = this.scene.time.now;
+    if (timeNow - this.lastFired > this.attackSpeed) {
+      const projectile = new Projectile(this.scene, this.x, this.y, 'player', this.projectileSpeed, this.projectileDuration);
+      projectile.launch(targetX, targetY);
+      this.lastFired = timeNow;
+    }
+  }
+
+  takeDamage(damage) {
+    this.health -= damage;
+    if (this.health <= 0) {
+      // Game over logic
+      console.log("You Have Died.")
+    }
+  }
+
+
+}
+
 class Game extends Phaser.Scene {
   constructor() {
     super();
 
     this.player;
-    this.playerScale = 0.5;
-    this.playerSpeed = 2500;
-    this.playerProjectiles;
-    this.playerProjectileSpeed = 3000;
-    this.playerProjectileLifetime = 1000;
     this.enemies = [];
     this.objects;
+    this.cursors;
 
   }
 
@@ -77,20 +141,27 @@ class Game extends Phaser.Scene {
   create() {
     
     this.createPlayer();
-    this.playerProjectiles = new PlayerProjectileGroup(this, this.playerProjectileSpeed);
+  
     this.createObjects();
     // Set up mouse input for shooting projectiles
-    this.input.on('pointerdown', this.handlePointerDown, this);
+
+    // this.input.on('pointerdown', this.handlePointerDown, this);
     this.createEnemies();
+
+    this.cursors = this.input.keyboard.addKeys({
+      up: Phaser.Input.Keyboard.KeyCodes.W,
+      down: Phaser.Input.Keyboard.KeyCodes.S,
+      left: Phaser.Input.Keyboard.KeyCodes.A,
+      right: Phaser.Input.Keyboard.KeyCodes.D
+    });
+
   }
 
   createEnemies() {
     spawnEnemies(this, 5, 3000, 500, this.enemies);
   }
   createPlayer() {
-    this.player = this.add.image(windowWidth/2, windowHeight/2, 'player');
-    this.player.setScale(this.playerScale);
-    this.player.setOrigin(0.5, 0.5);
+    this.player = new Player(this, windowWidth / 2, windowHeight / 2);
     this.cameras.main.startFollow(this.player);
   }
 
@@ -117,43 +188,15 @@ class Game extends Phaser.Scene {
   }
 
   update() {
-    // Handle player movement
-    // Calculate the total velocity based on pressed keys
-    let velocityX = 0;
-    let velocityY = 0;
-
-    if (this.input.keyboard.addKey('W').isDown) {
-        velocityY -= 1;
-    }
-    if (this.input.keyboard.addKey('S').isDown) {
-        velocityY += 1;
-    }
-    if (this.input.keyboard.addKey('A').isDown) {
-        velocityX -= 1;
-    }
-    if (this.input.keyboard.addKey('D').isDown) {
-        velocityX += 1;
-    }
-
-    // Normalize the velocity vector
-    const length = Math.sqrt(velocityX ** 2 + velocityY ** 2);
-    if (length !== 0) {
-        velocityX /= length;
-        velocityY /= length;
-    }
-
-    // Set the constant speed
-    const finalSpeed = this.playerSpeed * this.game.loop.delta / 1000;
-    this.player.x += velocityX * finalSpeed;
-    this.player.y += velocityY * finalSpeed;
+    this.player.update(this.cursors);
     this.enemies.forEach(enemy => enemy.update(this.player));
+    this.checkPointerDown();
   }
 
-  handlePointerDown(pointer) {
+  checkPointerDown() {
     // Shoot projectile on left click
-    if (pointer.leftButtonDown()) {
-      let pos = this.player.getCenter();
-      this.playerProjectiles.fireProjectile(pos.x, pos.y, pointer.worldX, pointer.worldY, this.playerProjectileLifetime);
+    if (this.input.activePointer.leftButtonDown()) {
+      this.player.shootProjectile( this.input.activePointer.worldX, this.input.activePointer.worldY);
     }
   }
 }
@@ -193,8 +236,5 @@ function spawnEnemies(scene, numberOfEnemies, spawnInterval, speed, enemies) {
     }
   });
 }
-
-
-
 
 const game = new Phaser.Game(config);
